@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.ConnectSchema;
@@ -68,6 +69,9 @@ public class RecordService {
   static final String CONNECTOR_PUSH_TIME = "SnowflakeConnectorPushTime";
   private static final String KEY_SCHEMA_ID = "key_schema_id";
   static final String HEADERS = "headers";
+
+    private static final ConcurrentHashMap<Class<?>, Schema.Type> SCHEMA_TYPE_CACHE =
+            new ConcurrentHashMap<>();
 
   private final StreamingRecordMapper streamingRecordMapper;
 
@@ -307,7 +311,11 @@ public class RecordService {
     try {
       final Schema.Type schemaType;
       if (schema == null) {
-        Schema.Type primitiveType = ConnectSchema.schemaType(value.getClass());
+          // TODO open a github issue for this optimization
+          Schema.Type primitiveType = SCHEMA_TYPE_CACHE.computeIfAbsent(
+                  value.getClass(),
+                  clazz -> ConnectSchema.schemaType(clazz)  // Only called once per class type
+          );
         if (primitiveType != null) {
           schemaType = primitiveType;
         } else {
